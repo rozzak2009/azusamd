@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AzusaMD Blockdrop</title>
+<style>
+  :root{
+    --bg: #0b0a14;
+    --panel: #14122a;
+    --line: #2a2650;
+    --ink: #e9e6ff;
+    --dim: #8b86b8;
+    --accent: #5ef2d0;
+    --accent2: #ff5fa8;
+    --warn: #ffcf5c;
+  }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: radial-gradient(120% 100% at 50% -10%, #1b1740 0%, var(--bg) 55%);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .stage{
+    display:flex; flex-direction:column; align-items:center;
+    height:100%; padding: 14px 12px 10px;
+  }
+  .brand{
+    font-family: "Courier New", monospace;
+    font-weight: 700;
+    letter-spacing: 2px;
+    font-size: 13px;
+    color: var(--accent);
+    margin-bottom: 2px;
+  }
+  h1{
+    font-size: 22px;
+    margin: 0 0 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+  }
+  h1 span{ color: var(--accent2); }
+
+  .hud{
+    display:flex; gap:8px; width:100%; max-width: 360px; margin-bottom: 10px;
+  }
+  .stat{
+    flex:1; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px;
+  }
+  .stat b{
+    display:block; font-size: 18px; font-variant-numeric: tabular-nums;
+  }
+  .stat span{
+    display:block; font-size: 10px; color: var(--dim); letter-spacing: 1px;
+  }
+  .stat.score b{ color: var(--accent); }
+  .stat.lines b{ color: var(--accent2); }
+  .stat.level b{ color: var(--warn); }
+
+  .board-wrap{
+    display:flex; gap:10px; align-items:flex-start; justify-content:center;
+    width:100%; max-width: 360px;
+  }
+  canvas#board{
+    background: #0e0c22;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: inset 0 0 40px rgba(94,242,208,0.05);
+    touch-action: none;
+  }
+  .side{
+    display:flex; flex-direction:column; gap:8px; width: 78px;
+  }
+  .next-box{
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px; text-align:center;
+  }
+  .next-box span{ font-size: 9px; color: var(--dim); letter-spacing: 1px; }
+  canvas#next{ display:block; margin-top: 4px; }
+
+  .msg{
+    margin-top: 10px; font-size: 12px; color: var(--dim); text-align:center;
+    min-height: 16px;
+  }
+  .msg.alert{ color: var(--accent2); font-weight: 700; }
+
+  .controls{
+    margin-top: 8px; width: 100%; max-width: 360px;
+    display:grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  }
+  .ctl{
+    background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 10px; padding: 14px 0; font-size: 18px; text-align:center;
+    user-select:none;
+  }
+  .ctl:active{ background: var(--line); }
+  .ctl.rotate{ color: var(--accent); }
+  .ctl.drop{ color: var(--accent2); }
+
+  .overlay{
+    position:absolute; inset:0; background: rgba(11,10,20,0.86);
+    display:flex; align-items:center; justify-content:center; flex-direction:column;
+    text-align:center; padding: 24px;
+  }
+  .overlay.hidden{ display:none; }
+  .overlay h2{ margin:0 0 6px; font-size: 20px; }
+  .overlay p{ margin:0 0 18px; color: var(--dim); font-size: 13px; }
+  .btn{
+    background: var(--accent); color: #06251f; border:none; border-radius: 10px;
+    padding: 12px 26px; font-weight: 700; font-size: 14px; letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="brand">AZUSAMD</div>
+  <h1>Block<span>drop</span></h1>
+
+  <div class="hud">
+    <div class="stat score"><b id="score">0</b><span>SKOR</span></div>
+    <div class="stat lines"><b id="lines">0</b><span>BARIS</span></div>
+    <div class="stat level"><b id="level">1</b><span>LEVEL</span></div>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="board" width="200" height="400"></canvas>
+    <div class="side">
+      <div class="next-box">
+        <span>BERIKUTNYA</span>
+        <canvas id="next" width="60" height="60"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="msg" id="msg">Geser buat gerak, tap buat putar</div>
+
+  <div class="controls">
+    <div class="ctl" id="btnLeft">◀</div>
+    <div class="ctl rotate" id="btnRotate">⟳</div>
+    <div class="ctl" id="btnRight">▶</div>
+    <div class="ctl drop" id="btnDrop">⤓</div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <h2 id="overlayTitle">Blockdrop</h2>
+  <p id="overlayText">Susun balok, penuhi baris, jangan sampai numpuk ke atas.</p>
+  <button class="btn" id="startBtn">Main</button>
+</div>
+
+<script>
+(function(){
+  var COLS = 10, ROWS = 20, CELL = 20;
+  var boardCanvas = document.getElementById('board');
+  var ctx = boardCanvas.getContext('2d');
+  var nextCanvas = document.getElementById('next');
+  var nctx = nextCanvas.getContext('2d');
+
+  var scoreEl = document.getElementById('score');
+  var linesEl = document.getElementById('lines');
+  var levelEl = document.getElementById('level');
+  var msgEl = document.getElementById('msg');
+  var overlay = document.getElementById('overlay');
+  var overlayTitle = document.getElementById('overlayTitle');
+  var overlayText = document.getElementById('overlayText');
+  var startBtn = document.getElementById('startBtn');
+
+  var COLORS = {
+    I: '#5ef2d0', O: '#ffcf5c', T: '#c792ff',
+    S: '#7dd6ff', Z: '#ff5fa8', J: '#6f8cff', L: '#ff9a5c'
+  };
+
+  var SHAPES = {
+    I: [[0,1],[1,1],[2,1],[3,1]],
+    O: [[1,0],[2,0],[1,1],[2,1]],
+    T: [[1,0],[0,1],[1,1],[2,1]],
+    S: [[1,0],[2,0],[0,1],[1,1]],
+    Z: [[0,0],[1,0],[1,1],[2,1]],
+    J: [[0,0],[0,1],[1,1],[2,1]],
+    L: [[2,0],[0,1],[1,1],[2,1]]
+  };
+  var KEYS = Object.keys(SHAPES);
+
+  var grid, current, next, score, lines, level, dropTimer, dropInterval, running, gameOver;
+
+  function emptyGrid(){
+    var g = [];
+    for (var r=0;r<ROWS;r++){ g.push(new Array(COLS).fill(null)); }
+    return g;
+  }
+
+  function randPiece(){
+    var k = KEYS[Math.floor(Math.random()*KEYS.length)];
+    var cells = SHAPES[k].map(function(c){ return [c[0], c[1]]; });
+    return { key:k, color: COLORS[k], cells: cells, x: 3, y: -1, rot: 0 };
+  }
+
+  function rotateCells(cells){
+    // rotate around approx center (2,1) box for simplicity
+    return cells.map(function(c){
+      var x = c[0], y = c[1];
+      var nx = 1 - (y - 1);
+      var ny = x - 1 + 1;
+      return [nx + 1, ny - 1];
+    });
+  }
+
+  function collides(cells, ox, oy){
+    for (var i=0;i<cells.length;i++){
+      var x = cells[i][0] + ox;
+      var y = cells[i][1] + oy;
+      if (x < 0 || x >= COLS || y >= ROWS) return true;
+      if (y >= 0 && grid[y][x]) return true;
+    }
+    return false;
+  }
+
+  function merge(){
+    current.cells.forEach(function(c){
+      var x = c[0] + current.x, y = c[1] + current.y;
+      if (y >= 0) grid[y][x] = current.color;
+    });
+  }
+
+  function clearLines(){
+    var cleared = 0;
+    for (var r = ROWS-1; r >= 0; r--){
+      if (grid[r].every(function(v){ return v; })){
+        grid.splice(r,1);
+        grid.unshift(new Array(COLS).fill(null));
+        cleared++; r++;
+      }
+    }
+    if (cleared > 0){
+      var points = [0,100,300,500,800][cleared] * level;
+      score += points;
+      lines += cleared;
+      level = 1 + Math.floor(lines / 10);
+      dropInterval = Math.max(120, 700 - (level-1)*55);
+      updateHud();
+    }
+  }
+
+  function updateHud(){
+    scoreEl.textContent = score;
+    linesEl.textContent = lines;
+    levelEl.textContent = level;
+  }
+
+  function spawn(){
+    current = next || randPiece();
+    current.x = 3; current.y = -1;
+    next = randPiece();
+    drawNext();
+    if (collides(current.cells, current.x, current.y+1)){
+      // still allow spawn attempt at y=0
+    }
+    if (collides(current.cells, current.x, 0)){
+      endGame(false);
+    } else {
+      current.y = 0;
+    }
+  }
+
+  function move(dx){
+    if (!running) return;
+    if (!collides(current.cells, current.x+dx, current.y)) current.x += dx;
+    draw();
+  }
+
+  function rotate(){
+    if (!running) return;
+    var rotated = rotateCells(current.cells);
+    var minX = Math.min.apply(null, rotated.map(function(c){return c[0];}));
+    var maxX = Math.max.apply(null, rotated.map(function(c){return c[0];}));
+    var shiftedOk = true;
+    var testX = current.x;
+    if (minX + testX < 0) testX = -minX;
+    if (maxX + testX >= COLS) testX = COLS - 1 - maxX;
+    if (!collides(rotated, testX, current.y)){
+      current.cells = rotated;
+      current.x = testX;
+    }
+    draw();
+  }
+
+  function softDrop(){
+    if (!running) return;
+    if (!collides(current.cells, current.x, current.y+1)){
+      current.y++;
+      score += 1; updateHud();
+    } else {
+      lock();
+    }
+    draw();
+  }
+
+  function hardDrop(){
+    if (!running) return;
+    var dist = 0;
+    while (!collides(current.cells, current.x, current.y+1)){
+      current.y++; dist++;
+    }
+    score += dist*2; updateHud();
+    lock();
+    draw();
+  }
+
+  function lock(){
+    merge();
+    clearLines();
+    spawn();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,boardCanvas.width, boardCanvas.height);
+    // grid dots
+    ctx.fillStyle = '#171432';
+    for (var r=0;r<ROWS;r++){
+      for (var c=0;c<COLS;c++){
+        ctx.fillRect(c*CELL+1, r*CELL+1, CELL-2, CELL-2);
+      }
+    }
+    // settled blocks
+    for (var r2=0;r2<ROWS;r2++){
+      for (var c2=0;c2<COLS;c2++){
+        if (grid[r2][c2]) drawCell(c2, r2, grid[r2][c2]);
+      }
+    }
+    // current piece
+    if (current){
+      current.cells.forEach(function(cell){
+        var x = cell[0]+current.x, y = cell[1]+current.y;
+        if (y >= 0) drawCell(x, y, current.color);
+      });
+    }
+  }
+
+  function drawCell(x,y,color){
+    ctx.fillStyle = color;
+    ctx.fillRect(x*CELL+1, y*CELL+1, CELL-2, CELL-2);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(x*CELL+1, y*CELL+1, CELL-2, 4);
+  }
+
+  function drawNext(){
+    nctx.clearRect(0,0,60,60);
+    if (!next) return;
+    var cells = next.cells;
+    var minX = Math.min.apply(null, cells.map(function(c){return c[0];}));
+    var minY = Math.min.apply(null, cells.map(function(c){return c[1];}));
+    nctx.fillStyle = next.color;
+    cells.forEach(function(c){
+      nctx.fillRect((c[0]-minX)*13+6, (c[1]-minY)*13+6, 11, 11);
+    });
+  }
+
+  function loop(ts){
+    if (!running) return;
+    if (!dropTimer) dropTimer = ts;
+    if (ts - dropTimer > dropInterval){
+      dropTimer = ts;
+      if (!collides(current.cells, current.x, current.y+1)){
+        current.y++;
+      } else {
+        lock();
+      }
+      draw();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  function startGame(){
+    grid = emptyGrid();
+    score = 0; lines = 0; level = 1; dropInterval = 700; dropTimer = 0;
+    updateHud();
+    next = null;
+    spawn();
+    running = true; gameOver = false;
+    overlay.classList.add('hidden');
+    msgEl.textContent = 'Geser buat gerak, tap buat putar';
+    msgEl.classList.remove('alert');
+    requestAnimationFrame(loop);
+  }
+
+  function endGame(){
+    running = false; gameOver = true;
+    overlayTitle.textContent = 'Game Over';
+    overlayText.textContent = 'Skor kamu: ' + score + ' — Level ' + level;
+    startBtn.textContent = 'Main Lagi';
+    overlay.classList.remove('hidden');
+    msgEl.textContent = 'Susunan penuh sampai atas!';
+    msgEl.classList.add('alert');
+  }
+
+  startBtn.addEventListener('click', startGame);
+
+  document.getElementById('btnLeft').addEventListener('click', function(){ move(-1); });
+  document.getElementById('btnRight').addEventListener('click', function(){ move(1); });
+  document.getElementById('btnRotate').addEventListener('click', rotate);
+  document.getElementById('btnDrop').addEventListener('click', hardDrop);
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowLeft') move(-1);
+    else if (e.key === 'ArrowRight') move(1);
+    else if (e.key === 'ArrowUp') rotate();
+    else if (e.key === 'ArrowDown') softDrop();
+    else if (e.key === ' ') { hardDrop(); e.preventDefault(); }
+  });
+
+  // simple swipe support on the board
+  var touchStartX=0, touchStartY=0, touchMoved=false;
+  boardCanvas.addEventListener('touchstart', function(e){
+    var t = e.touches[0];
+    touchStartX = t.clientX; touchStartY = t.clientY; touchMoved = false;
+  }, {passive:true});
+  boardCanvas.addEventListener('touchmove', function(e){
+    var t = e.touches[0];
+    var dx = t.clientX - touchStartX;
+    var dy = t.clientY - touchStartY;
+    if (Math.abs(dx) > 24){
+      move(dx > 0 ? 1 : -1);
+      touchStartX = t.clientX;
+      touchMoved = true;
+    } else if (dy > 40){
+      softDrop();
+      touchStartY = t.clientY;
+      touchMoved = true;
+    }
+  }, {passive:true});
+  boardCanvas.addEventListener('touchend', function(){
+    if (!touchMoved) rotate();
+  });
+
+  draw();
+})();
+</script>
+</body>
+</html>
